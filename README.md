@@ -91,12 +91,24 @@ imports = [ inputs.mihomo-manifold.homeManagerModules.default ];
 programs.mihomo-manifold = {
   enable = true;
   autostart = false;
-  defaults = {
-    core = { mixed_port = 7890; tun_enabled = true; tun_stack = "gvisor"; };
-    hwid.device_model = "ThinkPad X1";
-  };
 };
 ```
+
+`defaults` is optional. It is only worth writing for values that differ from the
+built-in ones — a per-machine baseline every rebuild restores:
+
+```nix
+programs.mihomo-manifold.defaults = {
+  # gvisor is the built-in default; the system stack is faster where it works
+  core = { tun_stack = "system"; log_level = "warning"; };
+  # what this host calls itself in the panel's device list
+  hwid.device_model = "thinkpad-x1";
+};
+```
+
+Keep subscription URLs out of it: anything in `defaults` lands in the Nix store,
+which is world-readable, and those URLs carry your access token. Add them in the
+UI instead — they go to `config.json` with mode 0600.
 
 The NixOS module installs `/run/wrappers/bin/mihomo` with
 `cap_net_admin,cap_net_raw,cap_net_bind_service+ep` and points the GUI at it via
