@@ -106,6 +106,25 @@ The NixOS module installs `/run/wrappers/bin/mihomo` with
 only the settings that differ from it — so a value you never touch in the UI
 keeps following your Nix configuration, while anything you do change wins.
 
+## Firewall
+
+Nothing needs opening for the default setup. With `allow-lan` off the core binds
+loopback only — the proxy on 7890, the controller on 9097 and DNS on 1053 — so
+none of it is reachable from the network.
+
+- **Sharing the proxy with other machines.** Turning on "Allow LAN" moves *only*
+  the proxy port to all interfaces; the controller and the DNS listener stay on
+  127.0.0.1, so a LAN peer can use the proxy but cannot drive the core. Open the
+  port yourself: `networking.firewall.allowedTCPPorts = [ 7890 ];`
+- **TUN.** The core creates the `mihomo-tun` device and its own routes. Replies
+  to connections your own machine opened are `ESTABLISHED`, which the default
+  NixOS firewall already accepts, so no rule is needed. If TUN comes up but no
+  traffic flows, try `networking.firewall.checkReversePath = "loose";` —
+  reverse-path filtering is the usual suspect with tunnel interfaces.
+- The core does not write firewall rules of its own: `auto-redirect` is off,
+  because it only pays off when the host forwards other devices' traffic and it
+  would otherwise be a second writer to your nftables ruleset.
+
 ## Files
 
 | Path | Contents |

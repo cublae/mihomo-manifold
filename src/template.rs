@@ -37,7 +37,10 @@ fn tun_section(cfg: &AppConfig) -> Value {
     put(&mut tun, "stack", v(cfg.core.tun_stack.clone()));
     put(&mut tun, "device", v("mihomo-tun"));
     put(&mut tun, "auto-route", v(true));
-    put(&mut tun, "auto-redirect", v(true));
+    // auto-redirect makes the core write its own nftables rules, and only pays
+    // off when this host forwards other devices' traffic. On a desktop it buys
+    // nothing and adds a second writer to the firewall, so it stays off.
+    put(&mut tun, "auto-redirect", v(false));
     put(&mut tun, "auto-detect-interface", v(true));
     put(&mut tun, "strict-route", v(false));
     put(&mut tun, "mtu", v(9000u64));
