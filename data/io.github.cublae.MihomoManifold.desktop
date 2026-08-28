@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=MihomoManifold
+GenericName=Proxy Client
+Comment=Manage the mihomo proxy core: subscriptions, device identity and split routing
+Exec=mihomo-manifold
+Icon=network-vpn
+Terminal=false
+Categories=Network;GTK;
+Keywords=proxy;vpn;mihomo;clash;subscription;routing;
+StartupNotify=true
+StartupWMClass=io.github.cublae.MihomoManifold
