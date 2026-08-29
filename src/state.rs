@@ -146,12 +146,10 @@ pub fn apply(state: &Rc<AppState>) {
     }
 
     let cfg_snapshot = state.config.borrow().clone();
-    if cfg_snapshot.core.tun_enabled
-        && !core::tun_capabilities_present(&cfg_snapshot.core.resolve_binary())
-    {
-        state.toast(
-            "TUN is on but the core has no CAP_NET_ADMIN — enable programs.mihomo-manifold.tun in NixOS.",
-        );
+    if cfg_snapshot.core.tun_enabled {
+        if let Some(warning) = core::tun_readiness(&cfg_snapshot.core.resolve_binary()).warning() {
+            state.toast(&warning);
+        }
     }
 
     if let Err(err) = core::start(&cfg_snapshot, &yaml) {

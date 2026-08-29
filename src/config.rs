@@ -87,6 +87,13 @@ impl CoreSettings {
                 return env.to_string_lossy().into_owned();
             }
         }
+        // The NixOS module exports the variable above through the session, which
+        // a session started before the rebuild has never seen. Look for the
+        // wrapper directly, or TUN would silently fall back to the plain binary
+        // on PATH, which cannot open the device.
+        if self.tun_enabled && std::path::Path::new(crate::corectl::NIXOS_WRAPPER).exists() {
+            return crate::corectl::NIXOS_WRAPPER.to_string();
+        }
         "mihomo".to_string()
     }
 }

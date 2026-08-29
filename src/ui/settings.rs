@@ -205,14 +205,9 @@ pub fn page(state: &Rc<AppState>) -> gtk::Widget {
         });
         tun_group.add(&tun_enabled);
 
-        let capability_ok = corectl::tun_capabilities_present(&resolved);
         let capability_row = adw::ActionRow::builder()
             .title("Privileges")
-            .subtitle(if capability_ok {
-                "The core binary can create the TUN device."
-            } else {
-                "⚠ No CAP_NET_ADMIN on the binary. Enable programs.mihomo-manifold.tun in your NixOS configuration."
-            })
+            .subtitle(corectl::tun_readiness(&resolved).describe())
             .build();
         capability_row.add_css_class("property");
         tun_group.add(&capability_row);
