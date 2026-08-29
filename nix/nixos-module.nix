@@ -42,6 +42,22 @@ in
       description = "Group allowed to run the privileged core wrapper.";
     };
 
+    tun.allowResolved = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Let the group configure DNS on the core's own tun device without a
+        password. In TUN mode the core points systemd-resolved at its internal
+        resolver by running `resolvectl dns/domain/default-route mihomo-tun …`,
+        and systemd gates those actions behind `auth_admin` — so without this
+        rule every start pops an authentication dialog, and refusing it leaves
+        the system resolver bypassing the tunnel.
+
+        The rule covers only `org.freedesktop.resolve1.*` and only for members
+        of `programs.mihomo-manifold.tun.group`.
+      '';
+    };
+
     users = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [ ];
@@ -70,6 +86,22 @@ in
         capabilities = "cap_net_admin,cap_net_raw,cap_net_bind_service+ep";
         source = "${cfg.corePackage}/bin/mihomo";
       };
+    };
+
+    # In TUN mode the core runs `resolvectl dns|domain|default-route mihomo-tun`
+    # to point the system resolver at its own DNS. systemd ships those actions as
+    # auth_admin, which would ask for a password on every start.
+    security.polkit = lib.mkIf (cfg.tun.enable && cfg.tun.allowResolved) {
+      enable = true;
+      extraConfig = ''
+        polkit.addRule(function(action, subject) {
+          // indexOf, not startsWith: polkit's JS engine is ES5.
+          if (action.id.indexOf("org.freedesktop.resolve1.") === 0 &&
+              subject.isInGroup("${cfg.tun.group}")) {
+            return polkit.Result.YES;
+          }
+        });
+      '';
     };
 
     boot.kernelModules = lib.mkIf cfg.tun.enable [ "tun" ];

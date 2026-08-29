@@ -114,6 +114,18 @@ The NixOS module installs `/run/wrappers/bin/mihomo` with
 `cap_net_admin,cap_net_raw,cap_net_bind_service+ep` and points the GUI at it via
 `MIHOMO_MANIFOLD_CORE`, so **the GUI itself never runs as root**.
 
+It also adds one polkit rule. In TUN mode the core points the system resolver at
+its own DNS by running `resolvectl dns|domain|default-route mihomo-tun …`, and
+systemd ships those actions as `auth_admin` — without the rule every start pops
+an authentication dialog, and dismissing it leaves the system resolver going
+around the tunnel. The rule grants `org.freedesktop.resolve1.*`, and only to
+members of the group that may run the core at all; turn it off with
+`programs.mihomo-manifold.tun.allowResolved = false;` if you would rather type
+the password.
+
+Log out and back in after the first rebuild: both the group membership and
+`MIHOMO_MANIFOLD_CORE` reach an already-running session only on the next login.
+
 `defaults` is merged *underneath* the mutable config, and the app writes back
 only the settings that differ from it — so a value you never touch in the UI
 keeps following your Nix configuration, while anything you do change wins.
