@@ -136,7 +136,14 @@ pub fn apply(state: &Rc<AppState>) {
             async move { api.reload(&path).await.map_err(|e| e.to_string()) },
             move |result| {
                 match result {
-                    Ok(()) => state.toast("Configuration reloaded"),
+                    Ok(()) => {
+                        state.toast("Configuration reloaded");
+                        // The pages read proxies from the core, so they have to
+                        // query it again. refresh_status alone would not do it:
+                        // it only redraws when the status itself changed, and a
+                        // reload leaves the core exactly as running as it was.
+                        state.notify();
+                    }
                     Err(err) => state.toast(&format!("Reload failed: {err}")),
                 }
                 refresh_status(&state);
@@ -271,7 +278,14 @@ pub fn update_subscription(state: &Rc<AppState>, id: &str, then_apply: bool) {
                 Ok(fetched) => {
                     state.toast(&format!("{} nodes downloaded", fetched.proxies.len()));
                     state.commit();
-                    if then_apply {
+                    // Downloading only refreshes the file on disk. The core is
+                    // still serving the nodes it was started with, so without a
+                    // reload the new ones never reach the Nodes page.
+                    let feeds_the_core = {
+                        let cfg = state.config.borrow();
+                        cfg.active().is_some_and(|active| active.id == id)
+                    };
+                    if then_apply || (feeds_the_core && state.is_running()) {
                         apply(&state);
                     }
                 }
