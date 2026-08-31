@@ -339,8 +339,8 @@ impl MatchKind {
         }
     }
 
-    /// IP-based matchers must not trigger a DNS lookup of the destination.
-    pub fn needs_no_resolve(&self) -> bool {
+    /// Matchers that look at the destination address rather than its name.
+    pub fn is_ip_based(&self) -> bool {
         matches!(self, MatchKind::IpCidr | MatchKind::Geoip)
     }
 
@@ -377,14 +377,20 @@ impl Default for DomainRule {
 }
 
 impl DomainRule {
-    pub fn to_rule(&self) -> String {
+    /// `fake_ip` decides whether an address matcher may resolve the destination.
+    pub fn to_rule(&self, fake_ip: bool) -> String {
         let base = format!(
             "{},{},{}",
             self.kind.as_rule_kind(),
             self.value,
             self.target.as_rule_target()
         );
-        if self.kind.needs_no_resolve() {
+        // `no-resolve` keeps an address matcher from looking up the destination.
+        // Under fake-ip there is nothing to match against without that lookup —
+        // the connection carries a 198.18.x.x placeholder — so an address rule
+        // written with it can only ever fire for literal-IP traffic, and a rule
+        // like "Russian sites direct" silently never matches a single domain.
+        if self.kind.is_ip_based() && !fake_ip {
             format!("{base},no-resolve")
         } else {
             base
@@ -676,6 +682,9 @@ mod tests {
             target: Target::Direct,
             enabled: true,
         };
-        assert_eq!(rule.to_rule(), "GEOIP,RU,DIRECT,no-resolve");
+        // Without fake-ip the destination address is already the real one.
+        assert_eq!(rule.to_rule(false), "GEOIP,RU,DIRECT,no-resolve");
+        // With fake-ip it must be allowed to resolve, or it matches nothing.
+        assert_eq!(rule.to_rule(true), "GEOIP,RU,DIRECT");
     }
 }

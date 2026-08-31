@@ -145,7 +145,7 @@ fn domain_editor(state: &Rc<AppState>, parent: &impl IsA<gtk::Widget>) {
 
     let group = adw::PreferencesGroup::builder()
         .title("Destination")
-        .description("IP and GEOIP matchers are written with `no-resolve` so they never trigger a DNS lookup.")
+        .description("With fake-ip DNS on, address matchers such as GEOIP resolve the destination — otherwise they would never match a domain.")
         .build();
 
     let kind = adw::ComboRow::builder()

@@ -208,7 +208,7 @@ fn rules(cfg: &AppConfig, provider_rules: Vec<String>) -> Vec<String> {
             .domain_rules
             .iter()
             .filter(|r| r.enabled && !r.value.trim().is_empty())
-            .map(|r| r.to_rule()),
+            .map(|r| r.to_rule(cfg.core.fake_ip)),
     );
 
     out.extend(provider_rules);
