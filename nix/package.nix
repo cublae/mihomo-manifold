@@ -6,6 +6,7 @@
 , gtk4
 , libadwaita
 , openssl
+, gsettings-desktop-schemas
 , librsvg
 , adwaita-icon-theme
 , mihomo
@@ -19,7 +20,7 @@ rustPlatform.buildRustPackage {
   cargoLock.lockFile = ../Cargo.lock;
 
   nativeBuildInputs = [ pkg-config wrapGAppsHook4 ];
-  buildInputs = [ glib gtk4 libadwaita openssl librsvg adwaita-icon-theme ];
+  buildInputs = [ glib gtk4 libadwaita openssl librsvg adwaita-icon-theme gsettings-desktop-schemas ];
 
   # The GUI shells out to the core; point it at a known-good binary by default.
   # The NixOS module overrides this with the capability wrapper when TUN is on.

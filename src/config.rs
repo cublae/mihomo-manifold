@@ -41,6 +41,11 @@ pub struct CoreSettings {
     pub tun_enabled: bool,
     pub tun_stack: String,
     pub fake_ip: bool,
+    /// uTLS fingerprint forced onto every node; empty keeps what the
+    /// subscription specified per node.
+    pub client_fingerprint: String,
+    /// In proxy-only mode, publish the port through the desktop proxy settings.
+    pub set_system_proxy: bool,
     /// Keep LAN and loopback traffic off the tunnel.
     pub bypass_private: bool,
     /// Start the core as soon as the GUI opens.
@@ -61,6 +66,8 @@ impl Default for CoreSettings {
             tun_enabled: true,
             tun_stack: "gvisor".to_string(),
             fake_ip: true,
+            client_fingerprint: String::new(),
+            set_system_proxy: false,
             bypass_private: true,
             autostart_core: false,
         }

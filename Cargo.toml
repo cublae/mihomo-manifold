@@ -16,6 +16,7 @@ async-channel = "2.5.0"
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
 futures-util = "0.3.34"
 gtk = { version = "0.11.4", package = "gtk4", features = ["v4_18"] }
+ksni = "0.3.6"
 reqwest = { version = "0.13.4", default-features = false, features = ["charset", "http2", "json", "stream", "system-proxy", "native-tls"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"

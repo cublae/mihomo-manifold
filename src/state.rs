@@ -9,7 +9,7 @@ use std::rc::Rc;
 use crate::api::ClashApi;
 use crate::config::AppConfig;
 use crate::corectl::{self as core, CoreStatus};
-use crate::{paths, runtime, subscription, template};
+use crate::{paths, runtime, subscription, sysproxy, template};
 
 type Listener = Rc<dyn Fn(&Rc<AppState>)>;
 
@@ -146,6 +146,8 @@ pub fn apply(state: &Rc<AppState>) {
                     }
                     Err(err) => state.toast(&format!("Reload failed: {err}")),
                 }
+                // The mode may have just changed from tunnel to proxy-only.
+                sync_system_proxy(&state);
                 refresh_status(&state);
             },
         );
@@ -186,6 +188,7 @@ pub fn apply(state: &Rc<AppState>) {
             Ok(version) => {
                 *state.status.borrow_mut() = CoreStatus::Running;
                 *state.core_version.borrow_mut() = Some(version);
+                sync_system_proxy(&state);
                 state.toast("Core started");
                 state.notify();
             }
@@ -203,9 +206,34 @@ pub fn apply(state: &Rc<AppState>) {
     );
 }
 
+/// Point the desktop at the core in proxy-only mode, and take it back when the
+/// core is not the one serving it any more. Only ever touches settings that
+/// point at us, so a proxy the user configured themselves is left alone.
+pub fn sync_system_proxy(state: &Rc<AppState>) {
+    let (wanted, host, port) = {
+        let cfg = state.config.borrow();
+        (
+            cfg.core.set_system_proxy && !cfg.core.tun_enabled && state.is_running(),
+            "127.0.0.1".to_string(),
+            cfg.core.mixed_port,
+        )
+    };
+
+    if wanted {
+        if !sysproxy::set(&host, port) {
+            state.toast("This desktop has no proxy settings to write (gsettings schema missing).");
+        }
+    } else if sysproxy::points_at(&host, port) {
+        sysproxy::clear();
+    }
+}
+
 pub fn stop(state: &Rc<AppState>) {
     core::stop();
     *state.status.borrow_mut() = CoreStatus::Stopped;
+    // Do this before notifying: leaving the desktop pointed at a port that no
+    // longer answers takes the whole session offline.
+    sync_system_proxy(state);
     *state.core_version.borrow_mut() = None;
     state.notify();
 }

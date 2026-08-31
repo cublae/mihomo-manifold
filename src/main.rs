@@ -8,7 +8,9 @@ mod paths;
 mod runtime;
 mod state;
 mod subscription;
+mod sysproxy;
 mod template;
+mod tray;
 mod ui;
 
 use adw::prelude::*;

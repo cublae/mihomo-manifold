@@ -23,6 +23,30 @@ fn put(map: &mut Mapping, key: &str, value: Value) {
     map.insert(Value::String(key.to_string()), value);
 }
 
+/// uTLS fingerprints the core understands, in menu order. The empty first entry
+/// means "leave whatever the subscription put on each node".
+pub const FINGERPRINTS: [&str; 9] = [
+    "", "chrome", "firefox", "safari", "ios", "android", "edge", "360", "random",
+];
+
+/// Force one fingerprint onto every node. The core dropped the global option in
+/// 1.19, so it has to be written per proxy.
+fn with_fingerprint(proxies: &[Value], fingerprint: &str) -> Vec<Value> {
+    if fingerprint.trim().is_empty() {
+        return proxies.to_vec();
+    }
+    proxies
+        .iter()
+        .map(|proxy| {
+            let mut proxy = proxy.clone();
+            if let Value::Mapping(map) = &mut proxy {
+                put(map, "client-fingerprint", v(fingerprint.trim()));
+            }
+            proxy
+        })
+        .collect()
+}
+
 /// Node names in subscription order, used to fill the generated groups.
 pub fn proxy_names(proxies: &[Value]) -> Vec<String> {
     proxies
@@ -261,9 +285,10 @@ pub fn generate(cfg: &AppConfig, proxies: &[Value]) -> Result<String> {
     }
     put(&mut root, "dns", dns_section(cfg));
 
+    let proxies = with_fingerprint(proxies, &cfg.core.client_fingerprint);
     put(&mut root, "proxies", seq(proxies.iter().cloned()));
 
-    let names = proxy_names(proxies);
+    let names = proxy_names(&proxies);
     put(&mut root, "proxy-groups", proxy_groups(cfg, &names));
 
     let provider_rules = match rule_providers(cfg) {
@@ -327,6 +352,24 @@ mod tests {
         });
         let with_apps = generate(&cfg, &[node("a")]).unwrap();
         assert!(with_apps.contains("find-process-mode: always"));
+    }
+
+    #[test]
+    fn the_forced_fingerprint_reaches_every_node() {
+        let mut with_own = Mapping::new();
+        put(&mut with_own, "name", v("A"));
+        put(&mut with_own, "client-fingerprint", v("edge"));
+        let nodes = [Value::Mapping(with_own), node("B")];
+
+        // Empty setting: whatever the subscription said stays.
+        let untouched = with_fingerprint(&nodes, "");
+        assert_eq!(untouched[0]["client-fingerprint"], v("edge"));
+        assert!(untouched[1].get("client-fingerprint").is_none());
+
+        // Set: every node carries it, including one that had its own.
+        let forced = with_fingerprint(&nodes, "firefox");
+        assert_eq!(forced[0]["client-fingerprint"], v("firefox"));
+        assert_eq!(forced[1]["client-fingerprint"], v("firefox"));
     }
 
     #[test]

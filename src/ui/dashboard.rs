@@ -134,8 +134,25 @@ pub fn page(state: &Rc<AppState>) -> gtk::Widget {
         .build();
     status_group.add(&profile_row);
 
-    let mode_row = adw::ActionRow::builder()
+    // Tunnel or plain proxy. It lives here rather than in Settings because it is
+    // the one thing people switch depending on where they are.
+    let mode_picker = adw::ComboRow::builder()
         .title("Mode")
+        .model(&widgets::string_list(&[
+            "Tunnel (TUN) — captures everything",
+            "Proxy only — one port, no privileges",
+        ]))
+        .build();
+    status_group.add(&mode_picker);
+
+    let proxy_row = adw::ActionRow::builder().title("Proxy address").build();
+    proxy_row.add_css_class("property");
+    let copy_proxy = widgets::icon_button("edit-copy-symbolic", "Copy");
+    proxy_row.add_suffix(&copy_proxy);
+    status_group.add(&proxy_row);
+
+    let mode_row = adw::ActionRow::builder()
+        .title("Routing")
         .subtitle("—")
         .build();
     status_group.add(&mode_row);
@@ -218,6 +235,29 @@ pub fn page(state: &Rc<AppState>) -> gtk::Widget {
     content.append(&actions_group);
 
     // ---- wiring ----
+    let mode_state = state.clone();
+    mode_picker.connect_selected_notify(move |combo| {
+        if mode_state.is_refreshing() {
+            return;
+        }
+        let tun = combo.selected() == 0;
+        mode_state.config.borrow_mut().core.tun_enabled = tun;
+        mode_state.save();
+        // Switching mode rewrites the config, so a running core has to take it.
+        if mode_state.is_running() {
+            state::apply(&mode_state);
+        } else {
+            mode_state.notify();
+        }
+    });
+
+    let copy_state = state.clone();
+    copy_proxy.connect_clicked(move |button| {
+        let address = format!("127.0.0.1:{}", copy_state.config.borrow().core.mixed_port);
+        widgets::copy_to_clipboard(button, &address);
+        copy_state.toast("Proxy address copied");
+    });
+
     let switch_state = state.clone();
     power.connect_active_notify(move |switch| {
         if switch_state.is_refreshing() {
@@ -267,12 +307,26 @@ pub fn page(state: &Rc<AppState>) -> gtk::Widget {
                 Some(sub) => format!("{} — {} nodes", sub.name, sub.node_count),
                 None => "none".to_string(),
             });
+
+            mode_picker.set_selected(if cfg.core.tun_enabled { 0 } else { 1 });
+            proxy_row.set_visible(!cfg.core.tun_enabled);
+            proxy_row.set_subtitle(&format!(
+                "127.0.0.1:{} (HTTP and SOCKS){}",
+                cfg.core.mixed_port,
+                if cfg.core.set_system_proxy {
+                    ", published to the desktop"
+                } else {
+                    ""
+                }
+            ));
             mode_row.set_subtitle(&format!(
                 "{} · {} rule{} · {} app rule{}",
+                // The mode itself is the picker above; this line is about what
+                // the tunnel carries.
                 if cfg.core.tun_enabled {
-                    format!("TUN ({})", cfg.core.tun_stack)
+                    format!("stack {}", cfg.core.tun_stack)
                 } else {
-                    format!("proxy on port {}", cfg.core.mixed_port)
+                    format!("port {}", cfg.core.mixed_port)
                 },
                 cfg.routing.domain_rules.len(),
                 if cfg.routing.domain_rules.len() == 1 {

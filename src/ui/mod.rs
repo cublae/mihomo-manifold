@@ -98,6 +98,52 @@ pub fn build_window(app: &adw::Application) {
     toaster.set_child(Some(&toolbar));
     window.set_content(Some(&toaster));
 
+    // ---- tray ----
+    let tray = crate::tray::spawn(false);
+
+    let command_state = state.clone();
+    let command_window = window.clone();
+    let command_app = app.clone();
+    let commands = tray.commands.clone();
+    glib::spawn_future_local(async move {
+        while let Ok(command) = commands.recv().await {
+            match command {
+                crate::tray::TrayCommand::Show => command_window.present(),
+                crate::tray::TrayCommand::ToggleCore => {
+                    if command_state.is_running() {
+                        state::stop(&command_state);
+                    } else {
+                        state::apply(&command_state);
+                    }
+                }
+                crate::tray::TrayCommand::Quit => {
+                    // Closing would only hide it once the tray is up.
+                    command_window.set_hide_on_close(false);
+                    command_app.quit();
+                }
+            }
+        }
+    });
+
+    // Only start hiding on close once something is actually showing the icon,
+    // or the window would vanish with no way to bring it back.
+    let hold_app = app.clone();
+    let hold_window = window.clone();
+    let started = tray.started.clone();
+    glib::spawn_future_local(async move {
+        if started.recv().await == Ok(true) {
+            hold_window.set_hide_on_close(true);
+            // Without a hold the application quits as soon as the last window
+            // goes away, taking the core with it.
+            std::mem::forget(hold_app.hold());
+        }
+    });
+
+    let tray_status = tray.status.clone();
+    state.subscribe(move |state| {
+        let _ = tray_status.try_send(state.is_running());
+    });
+
     // First paint, then find out whether a core is already running.
     state.notify();
     state::refresh_status(&state);

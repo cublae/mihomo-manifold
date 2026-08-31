@@ -8,6 +8,8 @@ use std::rc::Rc;
 use crate::config::HwidMode;
 use crate::corectl;
 use crate::state::{self, AppState};
+use crate::sysproxy;
+use crate::template;
 use crate::ui::widgets;
 
 const LOG_LEVELS: [&str; 5] = ["silent", "error", "warning", "info", "debug"];
@@ -86,6 +88,64 @@ pub fn page(state: &Rc<AppState>) -> gtk::Widget {
             port_state.save();
         });
         core_group.add(&mixed_port);
+
+        let system_proxy = adw::SwitchRow::builder()
+            .title("Publish as system proxy")
+            .subtitle("In proxy-only mode, point the desktop's proxy settings at the port")
+            .sensitive(sysproxy::is_available())
+            .build();
+        system_proxy.set_active(state.config.borrow().core.set_system_proxy);
+        if !sysproxy::is_available() {
+            system_proxy.set_subtitle("Unavailable: this session has no org.gnome.system.proxy schema");
+        }
+        let system_proxy_state = state.clone();
+        system_proxy.connect_active_notify(move |row| {
+            if system_proxy_state.is_refreshing() {
+                return;
+            }
+            system_proxy_state.config.borrow_mut().core.set_system_proxy = row.is_active();
+            system_proxy_state.save();
+            state::sync_system_proxy(&system_proxy_state);
+        });
+        core_group.add(&system_proxy);
+
+        // uTLS fingerprint. The core dropped the global option, so the app writes
+        // it onto every node when the user forces one.
+        let fingerprint_labels: Vec<String> = template::FINGERPRINTS
+            .iter()
+            .map(|f| {
+                if f.is_empty() {
+                    "As the subscription says".to_string()
+                } else {
+                    f.to_string()
+                }
+            })
+            .collect();
+        let fingerprint = adw::ComboRow::builder()
+            .title("TLS fingerprint")
+            .subtitle("What every node pretends to be during the handshake")
+            .model(&widgets::string_list(&fingerprint_labels))
+            .build();
+        let current_fingerprint = state.config.borrow().core.client_fingerprint.clone();
+        if let Some(index) = template::FINGERPRINTS
+            .iter()
+            .position(|f| *f == current_fingerprint)
+        {
+            fingerprint.set_selected(index as u32);
+        }
+        let fingerprint_state = state.clone();
+        fingerprint.connect_selected_notify(move |combo| {
+            if fingerprint_state.is_refreshing() {
+                return;
+            }
+            let picked = template::FINGERPRINTS
+                .get(combo.selected() as usize)
+                .copied()
+                .unwrap_or("");
+            fingerprint_state.config.borrow_mut().core.client_fingerprint = picked.to_string();
+            fingerprint_state.save();
+        });
+        core_group.add(&fingerprint);
 
         let controller_port = adw::SpinRow::with_range(1.0, 65535.0, 1.0);
         controller_port.set_title("Controller port");
