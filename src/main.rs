@@ -44,7 +44,15 @@ fn main() -> gtk::glib::ExitCode {
 
     let app = adw::Application::builder().application_id(APP_ID).build();
 
-    app.connect_activate(ui::build_window);
+    // Launching the app again reaches the running instance as another
+    // activation rather than a second process. Building the window again would
+    // leave a duplicate behind every time — its own state, tray item and poll
+    // timer — so an existing one is raised instead. With hide-on-close that is
+    // also how the window comes back from the tray.
+    app.connect_activate(|app| match app.windows().first() {
+        Some(window) => window.present(),
+        None => ui::build_window(app),
+    });
 
     // Never leave a core behind when the GUI goes away.
     app.connect_shutdown(|_| corectl::stop());
